@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  DRIVER
+  OWNER
+  ADMIN
+}
+
+enum ParkingType {
+  COVERED
+  OPEN_LOT
+  GARAGE
+  DRIVEWAY
+  VALET
+}
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentProvider {
+  STRIPE
+  DEV_TEST
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+model User {
+  id           String           @id @default(cuid())
+  email        String           @unique
+  passwordHash String
+  name         String
+  phone        String?
+  role         UserRole         @default(DRIVER)
+  isActive     Boolean          @default(true)
+  createdAt    DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime         @updatedAt @db.Timestamptz(3)
+
+  listings     ParkingListing[]
+  bookings     Booking[]
+
+  @@index([role])
+}
+
+model ParkingListing {
+  id                   String      @id @default(cuid())
+  ownerId              String
+  title                String
+  description          String
+  addressLine          String
+  area                 String
+  city                 String
+  postalCode           String?
+  parkingType          ParkingType
+  vehicleCompatibility String?
+  instructions         String?
+  pricePerHourPaise    Int
+  currency             String      @default("INR")
+  availableFromHour    Int         @default(0)
+  availableToHour      Int         @default(24)
+  isActive             Boolean     @default(true)
+  isApproved           Boolean     @default(true)
+  moderationNote       String?
+  isSample             Boolean     @default(false)
+  createdAt            DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime    @updatedAt @db.Timestamptz(3)
+
+  owner                User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  bookings             Booking[]
+
+  @@index([city, area])
+  @@index([ownerId])
+  @@index([isActive, isApproved])
+  @@index([pricePerHourPaise])
+}
+
+model Booking {
+  id                 String        @id @default(cuid())
+  reference          String        @unique
+  listingId          String
+  driverId           String
+  startTime          DateTime      @db.Timestamptz(3)
+  endTime            DateTime      @db.Timestamptz(3)
+  totalAmountPaise   Int
+  currency           String        @default("INR")
+  status             BookingStatus @default(PENDING_PAYMENT)
+  holdExpiresAt      DateTime?     @db.Timestamptz(3)
+  vehicleNumber      String?
+  notes              String?
+  cancelledAt        DateTime?     @db.Timestamptz(3)
+  cancellationReason String?
+  refundAmountPaise  Int?
+  createdAt          DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime      @updatedAt @db.Timestamptz(3)
+
+  listing            ParkingListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  driver             User           @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  payment            Payment?
+
+  @@index([listingId, startTime, endTime])
+  @@index([driverId, createdAt])
+  @@index([status, holdExpiresAt])
+}
+
+model Payment {
+  id                    String          @id @default(cuid())
+  bookingId             String          @unique
+  provider              PaymentProvider
+  status                PaymentStatus   @default(PENDING)
+  amountPaise           Int
+  refundedAmountPaise   Int             @default(0)
+  currency              String          @default("INR")
+  stripeSessionId       String?         @unique
+  stripePaymentIntentId String?         @unique
+  stripeRefundId        String?
+  lastWebhookEventId    String?
+  paidAt                DateTime?       @db.Timestamptz(3)
+  refundedAt            DateTime?       @db.Timestamptz(3)
+  metadataJson          Json?
+  createdAt             DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime        @updatedAt @db.Timestamptz(3)
+
+  booking               Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
