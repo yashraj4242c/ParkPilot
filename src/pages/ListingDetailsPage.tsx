@@ -26,6 +26,7 @@ import {
   toLocalDateTimeInputValue,
 } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
+import { getClientFallbackListing } from "../lib/clientFallback";
 import type {
   BookingRecord,
   CancellationPolicy,
@@ -79,8 +80,16 @@ export function ListingDetailsPage() {
       setListing(data.listing);
       setReservedSlots(data.upcomingReservedSlots);
       setPolicy(data.policy);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load listing.");
+    } catch {
+      // API unavailable on deployed Vercel without DB — use client-side fallback catalog
+      const fallback = getClientFallbackListing(id);
+      if (fallback) {
+        setListing(fallback);
+        setReservedSlots([]);
+        setPolicy({ holdDurationMinutes: 15, freeCancellationHoursBefore: 2, partialRefundPercent: 50 });
+      } else {
+        setError("Parking bay telemetry unavailable. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -111,13 +120,27 @@ export function ListingDetailsPage() {
         checkedAt: data.checkedAt,
       });
       setReservedSlots(data.upcomingReservedSlots);
-    } catch (err) {
-      setAvailability({
-        available: false,
-        reason:
-          err instanceof Error ? err.message : "Could not verify availability.",
-        checkedAt: new Date().toISOString(),
-      });
+    } catch {
+      // API unavailable — if this is a fallback listing, mark as available (no known conflicts)
+      const fallback = getClientFallbackListing(id!);
+      if (fallback) {
+        const start = new Date(startInput);
+        const end = new Date(endInput);
+        const withinHours =
+          start.getHours() >= fallback.availableFromHour &&
+          end.getHours() <= fallback.availableToHour;
+        setAvailability({
+          available: withinHours,
+          reason: withinHours ? null : `Operates ${fallback.availableFromHour}:00–${fallback.availableToHour}:00`,
+          checkedAt: new Date().toISOString(),
+        });
+      } else {
+        setAvailability({
+          available: false,
+          reason: "Could not verify availability — please try again.",
+          checkedAt: new Date().toISOString(),
+        });
+      }
     } finally {
       setCheckingSlot(false);
     }
