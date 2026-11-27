@@ -112,6 +112,40 @@ export function errorHandler(
       });
       return;
     }
+    if (err.code === "P2021") {
+      res.status(503).json({
+        success: false,
+        error: {
+          code: "DATABASE_NOT_MIGRATED",
+          message:
+            "Database tables do not exist yet. Please run 'npx prisma migrate deploy' on your cloud PostgreSQL database.",
+        },
+      });
+      return;
+    }
+    if (err.code === "P1001" || err.code === "P1000") {
+      res.status(503).json({
+        success: false,
+        error: {
+          code: "DATABASE_UNREACHABLE",
+          message:
+            "Cannot connect to the database. Please verify DATABASE_URL in your Vercel Environment Variables.",
+        },
+      });
+      return;
+    }
+  }
+
+  if (err instanceof Prisma.PrismaClientInitializationError) {
+    res.status(503).json({
+      success: false,
+      error: {
+        code: "DATABASE_INIT_ERROR",
+        message:
+          "Database initialization failed. Please ensure DATABASE_URL is set in Vercel settings and points to a live cloud PostgreSQL database.",
+      },
+    });
+    return;
   }
 
   if (!config.isProd) {

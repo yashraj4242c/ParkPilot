@@ -8,7 +8,7 @@
     "dev:api": "tsx watch server/dev.ts",
     "dev:web": "vite",
     "build": "tsc --noEmit && vite build",
-    "build:vercel": "prisma generate && vite build",
+    "build:vercel": "tsx scripts/vercel-build.ts",
     "start": "tsx server/dev.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

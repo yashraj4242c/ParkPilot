@@ -16,7 +16,11 @@ async function main() {
     persistent: true,
   });
 
-  await pg.initialise();
+  try {
+    await pg.initialise();
+  } catch {
+    // Cluster already initialized
+  }
   await pg.start();
   try {
     await pg.createDatabase(DB_NAME);
